@@ -2,6 +2,7 @@ use std::fmt::{Debug, Formatter};
 
 // TODO: Add an iterator (that supports reverse)?
 // TODO: Add various test cases, including fuzzing.
+// TODO: Add comments explaining various functions (e.g. take_smallest, etc).
 
 struct Node<T> {
     left: Option<Box<Node<T>>>,
@@ -9,41 +10,26 @@ struct Node<T> {
     value: T,
 }
 
-impl<T: Ord> Node<T> {
+impl<T: Ord + Debug> Node<T> {
     fn new(value: T) -> Self {
         Self {
             left: None, right: None, value
         }
     }
 
-    fn is_leaf(&self) -> bool {
-        self.left.is_none() && self.right.is_none()
-    }
-
-    fn take_smallest(&mut self) -> Box<Node<T>> {
-        let mut current = &mut self.left;
-        while let Some(node) = current {
-            current = &mut node.left;
-        }
-        match current.take() {
-            None => panic!("take_smallest called on a node with no left child."),
-            Some(node) => node,
-        }
-    }
-
     // Returns the value that should replace removing a child node.
     fn remove(&mut self) -> Option<Box<Node<T>>> {
         match (&mut self.left, &mut self.right) {
-            (Some(_), Some(ref mut right)) => {
-                let mut node = if right.is_leaf() {
-                    self.right.take().unwrap()
-                } else {
-                    right.take_smallest()
-                };
-                node.left = self.left.take();
-                node.right = self.right.take();
-                // println!("lifetime failure test: {:?}", left);
-                Some(node)
+            (Some(_), Some(_)) => {
+                let mut node = take_smallest(&mut self.right);
+                match node {
+                    None => {},
+                    Some(ref mut node) => {
+                        node.left = self.left.take();
+                        node.right = self.right.take();
+                    }
+                }
+                node
             },
             (None, Some(_)) => self.right.take(),
             (Some(_), None) => self.left.take(),
@@ -104,7 +90,7 @@ pub struct Tree<T> {
     root: Option<Box<Node<T>>>
 }
 
-impl<T: Ord> Tree<T> {
+impl<T: Ord + Debug> Tree<T> {
     pub fn new() -> Self {
         Self {
             root: None
@@ -123,7 +109,7 @@ impl<T: Ord> Tree<T> {
             None => {},
             Some(ref mut root) => {
                 if root.value == value {
-                    self.root = None;
+                    self.root = root.remove();
                 } else {
                     root.delete(value);
                 }
@@ -147,7 +133,22 @@ impl<T: Ord> Tree<T> {
     }
 }
 
-fn rotate_right<T: Ord>(mut root: Option<Box<Node<T>>>) -> Option<Box<Node<T>>> {
+fn take_smallest<T>(node: &mut Option<Box<Node<T>>>) -> Option<Box<Node<T>>> {
+    let mut current = node;
+    while let Some(node) = current {
+        current = &mut node.left;
+    }
+    let mut result = current.take();
+    match result {
+        None => {},
+        Some(ref mut result) => {
+            *current = result.right.take();
+        }
+    }
+    result
+}
+
+fn rotate_right<T>(mut root: Option<Box<Node<T>>>) -> Option<Box<Node<T>>> {
     match root {
         None => None,
         Some(ref mut root_ref) => {
@@ -165,7 +166,7 @@ fn rotate_right<T: Ord>(mut root: Option<Box<Node<T>>>) -> Option<Box<Node<T>>> 
     }
 }
 
-fn rotate_left<T: Ord>(mut root: Option<Box<Node<T>>>) -> Option<Box<Node<T>>> {
+fn rotate_left<T>(mut root: Option<Box<Node<T>>>) -> Option<Box<Node<T>>> {
     match root {
         None => None,
         Some(ref mut root_ref) => {
@@ -216,5 +217,18 @@ mod tests {
         for i in 0..100 {
             assert!(tree.contains(i));
         }
+    }
+
+    #[test]
+    fn delete_edge_case() {
+        let mut tree = Tree::new();
+        tree.insert(10);
+        tree.insert(20);
+        tree.insert(15);
+        tree.insert(17);
+        tree.delete(10);
+        assert!(tree.contains(20));
+        assert!(tree.contains(15));
+        assert!(tree.contains(17));
     }
 }
