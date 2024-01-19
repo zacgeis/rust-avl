@@ -1,7 +1,7 @@
-mod bst;
+mod avl;
 
 fn main() {
-    let mut tree = bst::Tree::new();
+    let mut tree = avl::Tree::new();
     tree.insert(4);
     tree.insert(5);
     tree.insert(6);
