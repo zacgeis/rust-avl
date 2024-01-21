@@ -1,10 +1,4 @@
-use std::borrow::Borrow;
 use std::fmt::{Debug, Formatter};
-
-// TODO: Add permutation tests.
-// TODO: Add iterator.
-// TODO: Add readme.
-// TODO: Update rebalance (and other functions) to only use &mut and not take. That should be all that's necessary.
 
 struct Node<T> {
     left: Option<Box<Node<T>>>,
@@ -12,81 +6,10 @@ struct Node<T> {
     value: T,
 }
 
-impl<T: Ord + Debug> Node<T> {
+impl<T> Node<T> {
     fn new(value: T) -> Self {
         Self {
             left: None, right: None, value
-        }
-    }
-
-    // Returns the node (a child) that should replace the node being removed.
-    fn remove(&mut self) -> Option<Box<Node<T>>> {
-        match (&mut self.left, &mut self.right) {
-            (Some(_), Some(_)) => {
-                let mut node = take_smallest(&mut self.right);
-                match node {
-                    None => {},
-                    Some(ref mut node) => {
-                        node.left = self.left.take();
-                        node.right = self.right.take();
-                    }
-                }
-                node
-            },
-            (None, Some(_)) => self.right.take(),
-            (Some(_), None) => self.left.take(),
-            (None, None) => None,
-        }
-    }
-
-    fn delete(&mut self, value: T) {
-        let child = if value < self.value {
-            &mut self.left
-        } else {
-            &mut self.right
-        };
-        match child {
-            None => {}
-            Some(ref mut child_ref) => {
-                if child_ref.value == value {
-                    *child = child_ref.remove();
-                } else {
-                    child_ref.delete(value);
-                }
-                *child = rebalance(child.take());
-            }
-        }
-    }
-
-    fn contains(&self, value: T) -> bool {
-        if value == self.value {
-            true
-        } else if value > self.value {
-            match self.right {
-                None => false,
-                Some(ref right) => right.contains(value),
-            }
-        } else {
-            match self.left {
-                None => false,
-                Some(ref left) => left.contains(value),
-            }
-        }
-    }
-
-    fn insert(&mut self, value: T) {
-        if value > self.value {
-            match self.right {
-                None => self.right = Some(Box::new(Node::new(value))),
-                Some(ref mut right) => right.insert(value),
-            }
-            self.right = rebalance(self.right.take());
-        } else if value < self.value {
-            match self.left {
-                None => self.left = Some(Box::new(Node::new(value))),
-                Some(ref mut left) => left.insert(value),
-            }
-            self.left = rebalance(self.left.take());
         }
     }
 }
@@ -95,49 +18,94 @@ pub struct Tree<T> {
     root: Option<Box<Node<T>>>
 }
 
-impl<T: Ord + Debug> Tree<T> {
+impl<T: Ord> Tree<T> {
     pub fn new() -> Self {
         Self {
             root: None
         }
     }
 
-    pub fn contains(&self, value: T) -> bool {
-        match self.root {
-            None => false,
-            Some(ref node) => node.contains(value),
-        }
+    pub fn insert(&mut self, value: T) {
+        insert(&mut self.root, value);
     }
 
-    pub fn delete(&mut self, value: T) {
-        match self.root {
-            None => {},
-            Some(ref mut root) => {
-                if root.value == value {
-                    self.root = root.remove();
-                } else {
-                    root.delete(value);
-                }
+    pub fn contains(&self, value: &T) -> bool {
+        contains(&self.root, value)
+    }
+
+    pub fn delete(&mut self, value: &T) {
+        delete(&mut self.root, value);
+    }
+}
+
+fn insert<T: Ord>(node: &mut Option<Box<Node<T>>>, value: T) {
+    match node {
+        None => *node = Some(Box::new(Node::new(value))),
+        Some(ref mut node_value) => {
+            if value < node_value.value {
+                insert(&mut node_value.left, value);
+            } else if value > node_value.value {
+                insert(&mut node_value.right, value);
+            }
+            rebalance(node);
+        }
+    };
+}
+
+fn contains<T: Eq + Ord>(node: &Option<Box<Node<T>>>, value: &T) -> bool {
+    match node {
+        None => false,
+        Some(ref node) => {
+            if value == &node.value {
+                true
+            } else if value < &node.value {
+                contains(&node.left, value)
+            } else {
+                contains(&node.right, value)
             }
         }
-        self.root = rebalance(self.root.take())
     }
+}
 
-    pub fn insert(&mut self, value: T) {
-        match self.root {
-            None => self.root = Some(Box::new(Node::new(value))),
-            Some(ref mut node) => node.insert(value),
+fn take_smallest<T>(node: &mut Option<Box<Node<T>>>) -> Option<Box<Node<T>>> {
+    match node {
+        None => None,
+        Some(ref mut node_value) => {
+            match node_value.left {
+                None => {
+                    let replacement = node_value.right.take();
+                    let result = node.take();
+                    *node = replacement;
+                    result
+                }
+                Some(_) => take_smallest(&mut node_value.left),
+            }
         }
-        self.root = rebalance(self.root.take())
     }
+}
 
-    pub fn rotate_left(&mut self) {
-        self.root = rotate_left(self.root.take());
-    }
-
-    pub fn rotate_right(&mut self) {
-        self.root = rotate_right(self.root.take());
-    }
+fn delete<T: Ord + Eq>(node: &mut Option<Box<Node<T>>>, value: &T) {
+    match node {
+        None => {},
+        Some(ref mut node_ref) => {
+            if value == &node_ref.value {
+                let mut next = take_smallest(&mut node_ref.right);
+                match next {
+                    None => *node = node_ref.left.take(),
+                    Some(ref mut next_ref) => {
+                        next_ref.left = node_ref.left.take();
+                        next_ref.right = node_ref.right.take();
+                        *node = next;
+                    }
+                }
+            } else if value < &node_ref.value {
+                delete(&mut node_ref.left, value)
+            } else {
+                delete(&mut node_ref.right, value)
+            }
+            rebalance(node);
+        }
+    };
 }
 
 fn balance_factor<T>(node: &Option<Box<Node<T>>>) -> i32 {
@@ -154,61 +122,44 @@ fn height<T>(node: &Option<Box<Node<T>>>) -> i32 {
     }
 }
 
-fn take_smallest<T>(node: &mut Option<Box<Node<T>>>) -> Option<Box<Node<T>>> {
-    let mut current = node;
-    while let Some(node) = current {
-        current = &mut node.left;
-    }
-    let mut result = current.take();
-    match result {
-        None => {},
-        Some(ref mut result) => {
-            *current = result.right.take();
-        }
-    }
-    result
-}
-
-fn rotate_right<T>(mut root: Option<Box<Node<T>>>) -> Option<Box<Node<T>>> {
+fn rotate_right<T>(root: &mut Option<Box<Node<T>>>) {
     match root {
-        None => None,
+        None => {},
         Some(ref mut root_ref) => {
             let mut pivot = root_ref.left.take();
             match pivot {
-                None => root,
+                None => {},
                 Some(ref mut pivot_ref) => {
-                    let transfer = pivot_ref.right.take();
-                    root_ref.left = transfer;
-                    pivot_ref.right = root;
-                    pivot
+                    root_ref.left = pivot_ref.right.take();
+                    pivot_ref.right = root.take();
                 }
             }
+            *root = pivot;
         }
-    }
+    };
 }
 
-fn rotate_left<T>(mut root: Option<Box<Node<T>>>) -> Option<Box<Node<T>>> {
+fn rotate_left<T>(root: &mut Option<Box<Node<T>>>) {
     match root {
-        None => None,
+        None => {},
         Some(ref mut root_ref) => {
             let mut pivot = root_ref.right.take();
             match pivot {
-                None => root,
+                None => {},
                 Some(ref mut pivot_ref) => {
-                    let transfer = pivot_ref.left.take();
-                    root_ref.right = transfer;
-                    pivot_ref.left = root;
-                    pivot
+                    root_ref.right = pivot_ref.left.take();
+                    pivot_ref.left = root.take();
                 }
             }
+            *root = pivot;
         }
-    }
+    };
 }
 
-fn rebalance<T>(mut node: Option<Box<Node<T>>>) -> Option<Box<Node<T>>> {
-    let bf = balance_factor(&node);
-    let new_node = match node {
-        None => None,
+fn rebalance<T>(node: &mut Option<Box<Node<T>>>) {
+    let bf = balance_factor(node);
+    match node {
+        None => {},
         Some(ref mut node_ref) => {
             if bf > 1 {
                 // Right tree is too tall.
@@ -216,7 +167,7 @@ fn rebalance<T>(mut node: Option<Box<Node<T>>>) -> Option<Box<Node<T>>> {
                 assert!(rbf >= -1 && rbf <= 1);
                 if rbf == -1 {
                     // Right tree only has a left child (no right child). If we only rotate_left, the height of the tree won't change.
-                    node_ref.right = rotate_right(node_ref.right.take());
+                    rotate_right(&mut node_ref.right);
                 }
                 rotate_left(node)
             } else if bf < -1 {
@@ -225,18 +176,14 @@ fn rebalance<T>(mut node: Option<Box<Node<T>>>) -> Option<Box<Node<T>>> {
                 assert!(lbf >= -1 && lbf <= 1);
                 if lbf == 1 {
                     // Left tree only has a right child (no left child). If we only rotate_right, the height of the tree won't change.
-                    node_ref.left = rotate_left(node_ref.left.take());
+                    rotate_left(&mut node_ref.left);
                 }
                 rotate_right(node)
-            } else {
-                // Tree is balanced.
-                node
             }
         }
     };
-    let bf = balance_factor(&new_node);
+    let bf = balance_factor(node);
     assert!(bf >= -1 && bf <= 1);
-    new_node
 }
 
 impl<T: Debug> Debug for Node<T> {
@@ -278,8 +225,8 @@ mod tests {
         let mut tree = Tree::new();
         tree.insert(5);
         assert_tree_invariants(&tree.root);
-        assert!(tree.contains(5));
-        assert!(!tree.contains(4));
+        assert!(tree.contains(&5));
+        assert!(!tree.contains(&4));
     }
 
     #[test]
@@ -290,12 +237,12 @@ mod tests {
             assert_tree_invariants(&tree.root);
         }
         for i in 0..100 {
-            assert!(tree.contains(i));
+            assert!(tree.contains(&i));
         }
         for i in 0..100 {
-            tree.delete(i);
+            tree.delete(&i);
             assert_tree_invariants(&tree.root);
-            assert!(!tree.contains(i));
+            assert!(!tree.contains(&i));
         }
     }
 
@@ -306,10 +253,10 @@ mod tests {
         tree.insert(20);
         tree.insert(15);
         tree.insert(17);
-        tree.delete(10);
-        assert!(tree.contains(20));
-        assert!(tree.contains(15));
-        assert!(tree.contains(17));
+        tree.delete(&10);
+        assert!(tree.contains(&20));
+        assert!(tree.contains(&15));
+        assert!(tree.contains(&17));
     }
 
     #[test]
@@ -318,12 +265,12 @@ mod tests {
         tree.insert(1);
         tree.insert(2);
         assert_eq!(tree.root.as_ref().unwrap().value, 1);
-        assert!(tree.contains(2));
+        assert!(tree.contains(&2));
         assert_tree_invariants(&tree.root);
-        tree.rotate_left();
+        rotate_left(&mut tree.root);
         assert_tree_invariants(&tree.root);
         assert_eq!(tree.root.as_ref().unwrap().value, 2);
-        assert!(tree.contains(1));
+        assert!(tree.contains(&1));
     }
 
     #[test]
@@ -332,12 +279,12 @@ mod tests {
         tree.insert(2);
         tree.insert(1);
         assert_eq!(tree.root.as_ref().unwrap().value, 2);
-        assert!(tree.contains(1));
+        assert!(tree.contains(&1));
         assert_tree_invariants(&tree.root);
-        tree.rotate_right();
+        rotate_right(&mut tree.root);
         assert_tree_invariants(&tree.root);
         assert_eq!(tree.root.as_ref().unwrap().value, 1);
-        assert!(tree.contains(2));
+        assert!(tree.contains(&2));
     }
 
     #[test]
