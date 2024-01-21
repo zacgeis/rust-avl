@@ -1,4 +1,4 @@
-# Rust AVL
+# Rust AVL Tree
 
 ## Overview
 
