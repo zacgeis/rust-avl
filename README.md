@@ -6,7 +6,7 @@ I'm in the process of learning Rust and I wanted to explore implementing a somew
 specific structure, I chose to implement an AVL-like tree. The implementation is somewhat basic, but it does support 
 `insert`, `contains`, and `delete` all with self-balancing.
 
-See the tests cases for example usage and more details.
+See the test cases for example usage and more details.
 
 This is entirely a toy implementation and should not be used in any real setting. Various aspects are non-optimal:
 
