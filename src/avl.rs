@@ -207,7 +207,7 @@ enum NodeState<'a, T> {
     LeftTraversed(&'a Box<Node<T>>),
 }
 
-struct TreeIter<'a, T> {
+pub struct TreeIter<'a, T> {
     stack: Vec<NodeState<'a, T>>
 }
 
