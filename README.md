@@ -4,7 +4,7 @@
 
 I'm in the process of learning Rust and I wanted to explore implementing a somewhat non-trivial tree structure. For the
 specific structure, I chose to implement an AVL-like tree. The implementation is somewhat basic, but it does support 
-`insert`, `contains`, and `delete` all with self-balancing.
+`insert`, `contains`, `iter`, and `delete` all with self-balancing.
 
 See the test cases for example usage and more details.
 

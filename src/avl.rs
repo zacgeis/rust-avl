@@ -36,6 +36,10 @@ impl<T: Ord> Tree<T> {
     pub fn delete(&mut self, value: &T) {
         delete(&mut self.root, value);
     }
+
+    pub fn iter(&self) -> TreeIter<T> {
+        TreeIter::new(self)
+    }
 }
 
 fn insert<T: Ord>(node: &mut Option<Box<Node<T>>>, value: T) {
@@ -198,6 +202,55 @@ impl<T: Debug> Debug for Tree<T> {
     }
 }
 
+enum NodeState<'a, T> {
+    Unvisited(&'a Box<Node<T>>),
+    LeftTraversed(&'a Box<Node<T>>),
+}
+
+struct TreeIter<'a, T> {
+    stack: Vec<NodeState<'a, T>>
+}
+
+impl<'a, T> Iterator for TreeIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match self.stack.pop() {
+                None => return None,
+                Some(state) => {
+                    match state {
+                        NodeState::Unvisited(node) => {
+                            self.stack.push(NodeState::LeftTraversed(node));
+                            match node.left {
+                                None => {},
+                                Some(ref left) => self.stack.push(NodeState::Unvisited(left)),
+                            }
+                        }
+                        NodeState::LeftTraversed(node) => {
+                            match node.right {
+                                None => {},
+                                Some(ref right) => self.stack.push(NodeState::Unvisited(right)),
+                            }
+                            return Some(&node.value);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<'a, T> TreeIter<'a, T> {
+    fn new(tree: &'a Tree<T>) -> Self {
+        let stack = match tree.root {
+            None => vec![],
+            Some(ref node) => vec![NodeState::Unvisited(node)],
+        };
+        Self { stack }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -325,5 +378,18 @@ mod tests {
         tree.insert(2);
         assert_tree_invariants(&tree.root);
         assert_eq!(height(&tree.root), 2);
+    }
+
+    #[test]
+    fn basic_iterator() {
+        let mut tree = Tree::new();
+        tree.insert(1);
+        tree.insert(2);
+        tree.insert(3);
+        let mut iter = tree.iter();
+        assert_eq!(iter.next(), Some(&1));
+        assert_eq!(iter.next(), Some(&2));
+        assert_eq!(iter.next(), Some(&3));
+        assert_eq!(iter.next(), None);
     }
 }
